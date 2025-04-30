@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hacker Terminal - Time Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='matrix.js') }}" defer></script>
+</head>
+<body>
+  <canvas id="matrix"></canvas>
+
+  <div class="terminal">
+    <h1 id="welcome-text"></h1>
+    <div class="prompt">
+      Username: <input type="text" id="username" placeholder="> enter username" autofocus />
+    </div>
+    <div class="prompt">
+      <button onclick="punch('IN')">➔ Punch In</button>
+      <button onclick="punch('OUT')">➔ Punch Out</button>
+      <button onclick="viewToday()">➔ View Today</button>
+      <button onclick="viewWeek()">➔ Weekly Summary</button>
+      <button onclick="downloadLog()">➔ Download Log</button>
+    </div>
+    <pre id="output" class="output">_</pre>
+  </div>
+
+  <!-- Optional: Typing SFX -->
+  <audio id="type-sfx" src="https://www.soundjay.com/mechanical/mechanical-keyboard-1.mp3" preload="auto"></audio>
+</body>
+</html>
