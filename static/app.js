@@ -29,7 +29,7 @@ function punch(action) {
   })
     .then(res => res.json())
     .then(data => {
-      appendOutput(`✅ ${action} punched at ${data.timestamp}`);
+      appendOutput(` ${action} punched at ${data.timestamp}`);
     });
 }
 
@@ -97,4 +97,102 @@ function downloadLog() {
 function appendOutput(text) {
   const area = document.getElementById("output");
   area.innerText += (area.innerText ? "\n" : "") + text;
+}
+let summaryChart = null;
+
+function renderChart(data) {
+  const ctx = document.getElementById("summaryChart").getContext("2d");
+
+  if (summaryChart) {
+    summaryChart.destroy(); // Clear previous chart
+  }
+
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const hourMap = {};
+
+  data.log.forEach(entry => {
+    const [datePart, timePart] = entry.timestamp.split(", ");
+    const date = new Date(`${datePart} ${timePart}`);
+    const dayName = days[date.getDay()];
+
+    if (!hourMap[dayName]) hourMap[dayName] = 0;
+    if (entry.action === "IN") {
+      hourMap[dayName] -= date.getTime(); // Start subtracting
+    } else if (entry.action === "OUT") {
+      hourMap[dayName] += date.getTime(); // Add OUT time
+    }
+  });
+
+  const labels = days;
+  const hours = days.map(day => {
+    const ms = hourMap[day] || 0;
+    return +(ms / (1000 * 60 * 60)).toFixed(2); // convert ms → hours
+  });
+
+  summaryChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Hours Worked",
+        data: hours,
+        backgroundColor: "rgba(54, 162, 235, 0.7)"
+      }]
+    },
+    options: {
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+}
+
+function viewWeek() {
+  const username = getUsername();
+  if (!username) return;
+
+  fetch(`/week?username=${encodeURIComponent(username)}`)
+    .then(res => res.json())
+    .then(data => {
+      const grouped = {};
+      data.log.forEach(e => {
+        const [date, ...rest] = e.timestamp.split(", ");
+        if (!grouped[date]) grouped[date] = [];
+        grouped[date].push(`${e.action} at ${rest.join(", ")}`);
+      });
+
+      let out = "";
+      for (const [date, actions] of Object.entries(grouped)) {
+        out += `📅 ${date}:\n`;
+        actions.forEach(line => out += `  ➔ ${line}\n`);
+      }
+
+      out += `\n🕒 Total hours worked this week: ${data.total_hours.toFixed(2)} hrs`;
+      document.getElementById("output").innerText = out;
+
+      renderChart(data); // 🔥 Draw chart
+    })
+    .catch(() => {
+      document.getElementById("output").innerText = ">> Error loading weekly log.";
+    });
+}
+
+function viewToday() {
+  const username = getUsername();
+  if (!username) return;
+
+  fetch(`/today?username=${encodeURIComponent(username)}`)
+    .then(res => res.json())
+    .then(data => {
+      const logLines = data.log.map(e => `➔ ${e.action} at ${e.timestamp}`).join('\n');
+      const summary = `🕒 Total hours worked today: ${data.total_hours.toFixed(2)} hrs`;
+      document.getElementById("output").innerText = logLines + "\n\n" + summary;
+
+      if (summaryChart) {
+        summaryChart.destroy(); // Clear chart when switching views
+      }
+    })
+    .catch(() => {
+      document.getElementById("output").innerText = ">> Error loading today's log.";
+    });
 }
