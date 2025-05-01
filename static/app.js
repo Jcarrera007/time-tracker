@@ -40,13 +40,9 @@ function viewToday() {
   fetch(`/today?username=${encodeURIComponent(username)}`)
     .then(res => res.json())
     .then(data => {
-      if (!Array.isArray(data) || data.length === 0) {
-        document.getElementById("output").innerText = ">> No entries today.";
-        return;
-      }
-
-      const out = data.map(e => `➔ ${e.action} at ${e.timestamp}`).join('\n');
-      document.getElementById("output").innerText = out;
+      const logLines = data.log.map(e => `➔ ${e.action} at ${e.timestamp}`).join('\n');
+      const summary = `🕒 Total hours worked today: ${data.total_hours.toFixed(2)} hrs`;
+      document.getElementById("output").innerText = logLines + "\n\n" + summary;
     })
     .catch(() => {
       document.getElementById("output").innerText = ">> Error loading today's log.";
@@ -60,16 +56,11 @@ function viewWeek() {
   fetch(`/week?username=${encodeURIComponent(username)}`)
     .then(res => res.json())
     .then(data => {
-      if (!Array.isArray(data) || data.length === 0) {
-        document.getElementById("output").innerText = ">> No activity this week.";
-        return;
-      }
-
       const grouped = {};
-      data.forEach(e => {
-        const [date, time, meridiem] = e.timestamp.split(/,\\s*/);
+      data.log.forEach(e => {
+        const [date, ...rest] = e.timestamp.split(", ");
         if (!grouped[date]) grouped[date] = [];
-        grouped[date].push(`${e.action} at ${time} ${meridiem}`);
+        grouped[date].push(`${e.action} at ${rest.join(", ")}`);
       });
 
       let out = "";
@@ -78,6 +69,7 @@ function viewWeek() {
         actions.forEach(line => out += `  ➔ ${line}\n`);
       }
 
+      out += `\n🕒 Total hours worked this week: ${data.total_hours.toFixed(2)} hrs`;
       document.getElementById("output").innerText = out;
     })
     .catch(() => {
