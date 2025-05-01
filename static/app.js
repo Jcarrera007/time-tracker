@@ -11,16 +11,17 @@ function punch(action) {
   const username = getUsername();
   if (!username) return;
 
+  const clientTimestamp = new Date().toISOString(); // device-local time in ISO
+
   fetch('/punch', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, action })
+    body: JSON.stringify({ username, action, timestamp: clientTimestamp })
   })
-    .then(res => res.json())
-    .then(data => {
-      const formattedTime = new Date(data.timestamp).toLocaleString('en-GB');
-      appendOutput(`✅ ${action} punched at ${formattedTime}`);
-    });
+  .then(res => res.json())
+  .then(data => {
+    appendOutput(`✅ ${action} punched at ${data.timestamp}`);
+  });
 }
 
 function viewToday() {
@@ -59,15 +60,13 @@ function viewWeek() {
       data.forEach(e => {
         const [date, time, meridiem] = e.timestamp.split(" ");
         if (!grouped[date]) grouped[date] = [];
-        grouped[date].push({ action: e.action, time: `${time} ${meridiem}` });
+        grouped[date].push(`${e.action} at ${time} ${meridiem}`);
       });
 
       let out = "";
-      for (const [date, entries] of Object.entries(grouped)) {
+      for (const [date, actions] of Object.entries(grouped)) {
         out += `📅 ${date}:\n`;
-        entries.forEach(e => {
-          out += `  ➔ ${e.action} at ${e.time}\n`;
-        });
+        actions.forEach(line => out += `  ➔ ${line}\n`);
       }
 
       document.getElementById("output").innerText = out;

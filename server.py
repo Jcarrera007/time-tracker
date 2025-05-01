@@ -8,6 +8,8 @@ import os
 app = Flask(__name__)
 CORS(app)
 
+PR_TZ = ZoneInfo("America/Puerto_Rico")
+
 # Initialize DB
 def init_db():
     conn = sqlite3.connect("tracker.db")
@@ -30,20 +32,26 @@ def punch():
     data = request.json
     username = data["username"]
     action = data["action"]
-    timestamp = datetime.now(ZoneInfo("America/Puerto_Rico")).isoformat()
+    timestamp = data.get("timestamp")
+
+    if timestamp:
+        timestamp = datetime.fromisoformat(timestamp)
+    else:
+        timestamp = datetime.now()
 
     conn = sqlite3.connect("tracker.db")
     c = conn.cursor()
-    c.execute("INSERT INTO logs (username, action, timestamp) VALUES (?, ?, ?)", (username, action, timestamp))
+    c.execute("INSERT INTO logs (username, action, timestamp) VALUES (?, ?, ?)", (username, action, timestamp.isoformat()))
     conn.commit()
     conn.close()
 
-    return jsonify({"status": "ok", "timestamp": timestamp})
+    formatted_time = timestamp.strftime("%d/%m/%Y %I:%M:%S %p")
+    return jsonify({"status": "ok", "timestamp": formatted_time})
 
 @app.route("/today")
 def today():
     username = request.args.get("username")
-    today = datetime.now(ZoneInfo("America/Puerto_Rico")).date()
+    today = datetime.now().date()
 
     conn = sqlite3.connect("tracker.db")
     c = conn.cursor()
@@ -54,19 +62,17 @@ def today():
     filtered = [
         {
             "action": action,
-            "timestamp": datetime.fromisoformat(timestamp)
-                .astimezone(ZoneInfo("America/Puerto_Rico"))
-                .strftime("%d/%m/%Y %I:%M:%S %p")
+            "timestamp": datetime.fromisoformat(timestamp).strftime("%d/%m/%Y %I:%M:%S %p")
         }
         for action, timestamp in rows
-        if datetime.fromisoformat(timestamp).astimezone(ZoneInfo("America/Puerto_Rico")).date() == today
+        if datetime.fromisoformat(timestamp).date() == today
     ]
     return jsonify(filtered)
 
 @app.route("/week")
 def week():
     username = request.args.get("username")
-    now = datetime.now(ZoneInfo("America/Puerto_Rico"))
+    now = datetime.now()
     week_ago = now - timedelta(days=7)
 
     conn = sqlite3.connect("tracker.db")
@@ -78,12 +84,10 @@ def week():
     filtered = [
         {
             "action": action,
-            "timestamp": datetime.fromisoformat(timestamp)
-                .astimezone(ZoneInfo("America/Puerto_Rico"))
-                .strftime("%d/%m/%Y %I:%M:%S %p")
+            "timestamp": datetime.fromisoformat(timestamp).strftime("%d/%m/%Y %I:%M:%S %p")
         }
         for action, timestamp in rows
-        if datetime.fromisoformat(timestamp).astimezone(ZoneInfo("America/Puerto_Rico")) >= week_ago
+        if datetime.fromisoformat(timestamp) >= week_ago
     ]
     return jsonify(filtered)
 
@@ -100,9 +104,7 @@ def download():
     filename = f"{username}_log.txt"
     with open(filename, "w") as f:
         for action, timestamp in rows:
-            formatted = datetime.fromisoformat(timestamp)
-                .astimezone(ZoneInfo("America/Puerto_Rico"))
-                .strftime("%d/%m/%Y %I:%M:%S %p")
+            formatted = datetime.fromisoformat(timestamp).strftime("%d/%m/%Y %I:%M:%S %p")
             f.write(f"{formatted} - {action}\n")
 
     return send_file(filename, as_attachment=True)
