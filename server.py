@@ -2,13 +2,10 @@ from flask import Flask, request, jsonify, send_file, render_template
 from flask_cors import CORS
 import sqlite3
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 import os
 
 app = Flask(__name__)
 CORS(app)
-
-PR_TZ = ZoneInfo("America/Puerto_Rico")
 
 # Initialize DB
 def init_db():
@@ -32,64 +29,46 @@ def punch():
     data = request.json
     username = data["username"]
     action = data["action"]
-    timestamp = data.get("timestamp")
-
-    if timestamp:
-        timestamp = datetime.fromisoformat(timestamp)
-    else:
-        timestamp = datetime.now()
+    timestamp = data.get("timestamp") or datetime.now().strftime("%d/%m/%Y %I:%M:%S %p")
 
     conn = sqlite3.connect("tracker.db")
     c = conn.cursor()
-    c.execute("INSERT INTO logs (username, action, timestamp) VALUES (?, ?, ?)", (username, action, timestamp.isoformat()))
+    c.execute("INSERT INTO logs (username, action, timestamp) VALUES (?, ?, ?)", (username, action, timestamp))
     conn.commit()
     conn.close()
 
-    formatted_time = timestamp.strftime("%d/%m/%Y %I:%M:%S %p")
-    return jsonify({"status": "ok", "timestamp": formatted_time})
+    return jsonify({"status": "ok", "timestamp": timestamp})
 
 @app.route("/today")
 def today():
     username = request.args.get("username")
-    today = datetime.now().date()
+    today_str = datetime.now().strftime("%d/%m/%Y")
 
     conn = sqlite3.connect("tracker.db")
     c = conn.cursor()
-    c.execute("SELECT action, timestamp FROM logs WHERE username=? ORDER BY timestamp", (username,))
+    c.execute("SELECT action, timestamp FROM logs WHERE username=? ORDER BY id", (username,))
     rows = c.fetchall()
     conn.close()
 
     filtered = [
-        {
-            "action": action,
-            "timestamp": datetime.fromisoformat(timestamp).strftime("%d/%m/%Y %I:%M:%S %p")
-        }
+        {"action": action, "timestamp": timestamp}
         for action, timestamp in rows
-        if datetime.fromisoformat(timestamp).date() == today
+        if timestamp.startswith(today_str)
     ]
     return jsonify(filtered)
 
 @app.route("/week")
 def week():
     username = request.args.get("username")
-    now = datetime.now()
-    week_ago = now - timedelta(days=7)
 
     conn = sqlite3.connect("tracker.db")
     c = conn.cursor()
-    c.execute("SELECT action, timestamp FROM logs WHERE username=? ORDER BY timestamp", (username,))
+    c.execute("SELECT action, timestamp FROM logs WHERE username=? ORDER BY id", (username,))
     rows = c.fetchall()
     conn.close()
 
-    filtered = [
-        {
-            "action": action,
-            "timestamp": datetime.fromisoformat(timestamp).strftime("%d/%m/%Y %I:%M:%S %p")
-        }
-        for action, timestamp in rows
-        if datetime.fromisoformat(timestamp) >= week_ago
-    ]
-    return jsonify(filtered)
+    filtered = rows[-50:]  # return last 50 entries for the user for simplicity
+    return jsonify([{ "action": action, "timestamp": timestamp } for action, timestamp in filtered])
 
 @app.route("/download")
 def download():
@@ -97,15 +76,14 @@ def download():
 
     conn = sqlite3.connect("tracker.db")
     c = conn.cursor()
-    c.execute("SELECT action, timestamp FROM logs WHERE username=? ORDER BY timestamp", (username,))
+    c.execute("SELECT action, timestamp FROM logs WHERE username=? ORDER BY id", (username,))
     rows = c.fetchall()
     conn.close()
 
     filename = f"{username}_log.txt"
     with open(filename, "w") as f:
         for action, timestamp in rows:
-            formatted = datetime.fromisoformat(timestamp).strftime("%d/%m/%Y %I:%M:%S %p")
-            f.write(f"{formatted} - {action}\n")
+            f.write(f"{timestamp} - {action}\n")
 
     return send_file(filename, as_attachment=True)
 

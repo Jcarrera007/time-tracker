@@ -11,17 +11,26 @@ function punch(action) {
   const username = getUsername();
   if (!username) return;
 
-  const clientTimestamp = new Date().toISOString(); // device-local time in ISO
+  const now = new Date();
+  const clientFormatted = now.toLocaleString('en-US', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
 
   fetch('/punch', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, action, timestamp: clientTimestamp })
+    body: JSON.stringify({ username, action, timestamp: clientFormatted })
   })
-  .then(res => res.json())
-  .then(data => {
-    appendOutput(`✅ ${action} punched at ${data.timestamp}`);
-  });
+    .then(res => res.json())
+    .then(data => {
+      appendOutput(`✅ ${action} punched at ${data.timestamp}`);
+    });
 }
 
 function viewToday() {
@@ -58,7 +67,7 @@ function viewWeek() {
 
       const grouped = {};
       data.forEach(e => {
-        const [date, time, meridiem] = e.timestamp.split(" ");
+        const [date, time, meridiem] = e.timestamp.split(/,\\s*/);
         if (!grouped[date]) grouped[date] = [];
         grouped[date].push(`${e.action} at ${time} ${meridiem}`);
       });
