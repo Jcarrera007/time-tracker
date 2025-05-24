@@ -1,12 +1,14 @@
-
-from flask import Flask, request, jsonify, send_file, render_template
+from flask import Flask, request, jsonify, send_file, render_template, session, redirect, url_for
 from flask_cors import CORS
 import sqlite3
 from datetime import datetime, timedelta
 import os
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 CORS(app)
+
+app.secret_key = "your_secret_key"  # Set a strong secret key!
 
 # Initialize DB
 def init_db():
@@ -17,6 +19,12 @@ def init_db():
         username TEXT,
         action TEXT,
         timestamp TEXT
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        password TEXT,
+        role TEXT
     )''')
     conn.commit()
     conn.close()
@@ -135,6 +143,74 @@ def download():
             f.write(f"{timestamp} - {action}\n")
 
     return send_file(filename, as_attachment=True)
+
+@app.route("/login", methods=["POST"])
+def login():
+    data = request.json
+    username = data["username"]
+    password = data["password"]
+
+    conn = sqlite3.connect("tracker.db")
+    c = conn.cursor()
+    c.execute("SELECT password, role FROM users WHERE username=?", (username,))
+    result = c.fetchone()
+    conn.close()
+
+    if result and check_password_hash(result[0], password):
+        session["username"] = username
+        session["role"] = result[1]
+        return jsonify({"status": "ok", "role": result[1]})
+    else:
+        return jsonify({"status": "error", "message": "Invalid credentials"}), 401
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return jsonify({"status": "logged out"})
+
+def login_required(role=None):
+    def decorator(f):
+        def wrapper(*args, **kwargs):
+            if "username" not in session:
+                return jsonify({"status": "error", "message": "Login required"}), 401
+            if role and session.get("role") != role:
+                return jsonify({"status": "error", "message": "Unauthorized"}), 403
+            return f(*args, **kwargs)
+        wrapper.__name__ = f.__name__
+        return wrapper
+    return decorator
+
+# Example: Protect an admin route
+@app.route("/admin")
+@login_required(role="admin")
+def admin_dashboard():
+    return jsonify({"status": "ok", "message": "Welcome, admin!"})
+
+# Example: Protect an employee route
+@app.route("/employee")
+@login_required(role="employee")
+def employee_dashboard():
+    return jsonify({"status": "ok", "message": f"Welcome, {session['username']}!"})
+
+@app.route("/register", methods=["POST"])
+@login_required(role="admin")
+def register():
+    data = request.json
+    username = data["username"]
+    password = data["password"]
+    role = data["role"]  # "admin" or "employee"
+
+    conn = sqlite3.connect("tracker.db")
+    c = conn.cursor()
+    try:
+        hashed_password = generate_password_hash(password)
+        c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (username, hashed_password, role))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({"status": "error", "message": "Username already exists"}), 400
+    conn.close()
+    return jsonify({"status": "ok", "message": "User registered"})
 
 if __name__ == "__main__":
     init_db()
