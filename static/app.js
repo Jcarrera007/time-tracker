@@ -1,4 +1,3 @@
-
 function getUsername() {
   const name = document.getElementById('username').value.trim();
   if (!name) {
@@ -144,3 +143,62 @@ function renderChart(data) {
     }
   });
 }
+
+async function login() {
+    const username = document.getElementById("loginUsername").value.trim();
+    const password = document.getElementById("loginPassword").value.trim();
+    const errorDiv = document.getElementById("loginError");
+    errorDiv.textContent = "";
+
+    if (!username || !password) {
+        errorDiv.textContent = "Please enter both username and password.";
+        return;
+    }
+
+    try {
+        const response = await fetch("/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.status === "ok") {
+            // Hide login, show main
+            document.getElementById("loginSection").classList.add("d-none");
+            document.getElementById("mainSection").classList.remove("d-none");
+            document.getElementById("logoutBtn").classList.remove("d-none");
+            document.getElementById("username").value = username;
+
+            // Show admin section if admin
+            if (data.role === "admin") {
+                document.getElementById("adminSection").classList.remove("d-none");
+            } else {
+                document.getElementById("adminSection").classList.add("d-none");
+            }
+        } else {
+            errorDiv.textContent = data.message || "Login failed.";
+        }
+    } catch (err) {
+        errorDiv.textContent = "Server error. Please try again.";
+    }
+}
+
+// Optional: Logout function
+async function logout() {
+    await fetch("/logout");
+    document.getElementById("mainSection").classList.add("d-none");
+    document.getElementById("loginSection").classList.remove("d-none");
+    document.getElementById("logoutBtn").classList.add("d-none");
+    document.getElementById("loginUsername").value = "";
+    document.getElementById("loginPassword").value = "";
+    document.getElementById("loginError").textContent = "";
+}
+
+// Add this to allow pressing Enter to submit login
+document.getElementById("loginPassword").addEventListener("keyup", function(event) {
+    if (event.key === "Enter") {
+        login();
+    }
+});
